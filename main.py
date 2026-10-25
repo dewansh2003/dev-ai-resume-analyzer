@@ -1,108 +1,51 @@
+import io
+import re
+import base64
+from pathlib import Path
+
 import streamlit as st
 from pypdf import PdfReader
 from docx import Document
-from pathlib import Path
 from google import genai
-import re
-import io
-import base64
-
-# Optional OCR libraries
-try:
-    import pytesseract
-    from pdf2image import convert_from_bytes
-    OCR_AVAILABLE = True
-except ImportError:
-    OCR_AVAILABLE = False
+from google.genai import types
 
 
-# =====================================================
-# PAGE CONFIGURATION
-# =====================================================
+# ==================================================
+# PAGE CONFIG
+# ==================================================
 st.set_page_config(
     page_title="Dev AI | Resume Analyzer",
     page_icon="📄",
     layout="wide",
-    initial_sidebar_state="collapsed",
 )
 
 
-# =====================================================
-# CUSTOM DESIGN
-# =====================================================
+# ==================================================
+# DESIGN
+# ==================================================
 st.markdown("""
 <style>
-:root {
-    --background: #0b1220;
-    --surface: #111c2e;
-    --border: #26364b;
-    --primary: #14b8a6;
-    --text: #f1f5f9;
-    --muted: #a6b3c5;
-}
-
 .stApp {
-    background: var(--background);
-    color: var(--text);
+    background: #0b1220;
+    color: #f1f5f9;
 }
 
 .block-container {
-    max-width: 1180px;
+    max-width: 1150px;
     padding-top: 2rem;
     padding-bottom: 2rem;
 }
 
 h1, h2, h3 {
-    color: var(--text) !important;
+    color: #f1f5f9 !important;
 }
 
 p, label {
-    color: var(--muted);
-}
-
-.brand-header {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    padding: 30px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    margin-bottom: 30px;
-}
-
-.brand-logo {
-    width: 105px;
-    height: 105px;
-    min-width: 105px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid var(--primary);
-    background: white;
-}
-
-.brand-name {
-    color: white;
-    font-size: 42px;
-    font-weight: 800;
-}
-
-.brand-subtitle {
-    color: #5eead4;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 4px;
-}
-
-.brand-description {
     color: #b6c3d4;
-    font-size: 15px;
-    line-height: 1.7;
-    margin-top: 12px;
 }
 
 .stTextArea textarea {
-    background: #0f192a !important;
+    background: #111c2e !important;
     color: white !important;
     border: 1px solid #35465d !important;
     border-radius: 10px !important;
@@ -110,82 +53,117 @@ p, label {
 
 .stButton > button,
 .stDownloadButton > button {
-    background: #0f9f91;
-    color: white;
-    border: 1px solid #14b8a6;
+    background: #14b8a6;
+    color: #07111f;
+    border: none;
     border-radius: 10px;
-    min-height: 45px;
     font-weight: 700;
-    width: 100%;
+    min-height: 44px;
 }
 
 .stButton > button:hover,
 .stDownloadButton > button:hover {
-    background: #14b8a6;
+    background: #5eead4;
     color: #07111f;
 }
 
+.header-box {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    background: #111c2e;
+    border: 1px solid #26364b;
+    border-radius: 18px;
+    padding: 25px;
+    margin-bottom: 28px;
+}
+
+.brand-logo {
+    width: 90px;
+    height: 90px;
+    min-width: 90px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 3px solid #14b8a6;
+    background: white;
+}
+
+.brand-title {
+    font-size: 40px;
+    font-weight: 800;
+    color: white;
+}
+
+.brand-subtitle {
+    font-size: 13px;
+    letter-spacing: 4px;
+    color: #5eead4;
+    font-weight: 700;
+}
+
 .metric-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: #111c2e;
+    border: 1px solid #26364b;
     border-radius: 14px;
-    padding: 22px 10px;
+    padding: 20px 8px;
     text-align: center;
 }
 
-.metric-number {
-    color: #5eead4;
+.metric-value {
     font-size: 30px;
     font-weight: 800;
+    color: #5eead4;
 }
 
 .metric-label {
-    color: #a6b3c5;
+    color: #b6c3d4;
     font-size: 13px;
-    margin-top: 7px;
+    margin-top: 5px;
 }
 
-.skill-tag, .missing-tag {
+.skill-tag {
     display: inline-block;
+    background: #123a38;
+    color: #99f6e4;
+    border: 1px solid #22665f;
     border-radius: 7px;
-    padding: 7px 11px;
+    padding: 6px 10px;
     margin: 4px;
     font-size: 13px;
 }
 
-.skill-tag {
-    background: #123a38;
-    color: #99f6e4;
-    border: 1px solid #22665f;
-}
-
 .missing-tag {
+    display: inline-block;
     background: #35232b;
     color: #fecdd3;
     border: 1px solid #70404d;
+    border-radius: 7px;
+    padding: 6px 10px;
+    margin: 4px;
+    font-size: 13px;
 }
 
-.footer {
+.footer-box {
     text-align: center;
-    color: #8b9bb0;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid #26364b;
     padding-top: 22px;
     margin-top: 45px;
+    color: #8b9bb0;
 }
 
-@media(max-width: 640px) {
-    .brand-header {
-        padding: 18px;
-        gap: 14px;
+@media(max-width: 600px) {
+    .header-box {
+        padding: 16px;
+        gap: 12px;
     }
 
     .brand-logo {
-        width: 75px;
-        height: 75px;
-        min-width: 75px;
+        width: 65px;
+        height: 65px;
+        min-width: 65px;
     }
 
-    .brand-name {
+    .brand-title {
         font-size: 28px;
     }
 
@@ -198,18 +176,15 @@ p, label {
 """, unsafe_allow_html=True)
 
 
-# =====================================================
-# LOGO
-# =====================================================
-def load_logo():
-    paths = [
-        Path(__file__).parent / "logo.jpg",
-        Path(__file__).parent / "logo.png",
-        Path(__file__).parent / "static" / "logo.jpg",
-        Path(__file__).parent / "static" / "logo.png",
-    ]
+# ==================================================
+# HEADER AND LOGO
+# ==================================================
+def get_logo():
+    base = Path(__file__).parent
 
-    for path in paths:
+    for filename in ["logo.jpg", "logo.png"]:
+        path = base / filename
+
         if path.exists():
             try:
                 image_data = base64.b64encode(
@@ -218,38 +193,50 @@ def load_logo():
 
                 mime = (
                     "image/png"
-                    if path.suffix.lower() == ".png"
+                    if filename.endswith(".png")
                     else "image/jpeg"
                 )
 
-                return f"data:{mime};base64,{image_data}"
-
-            except OSError:
+                return (
+                    f'<img class="brand-logo" '
+                    f'src="data:{mime};base64,{image_data}">'
+                )
+            except Exception:
                 pass
 
-    return None
-
-
-logo = load_logo()
-
-if logo:
-    logo_html = (
-        f'<img src="{logo}" class="brand-logo" alt="Dev AI Logo">'
-    )
-else:
-    logo_html = """
+    return """
     <div class="brand-logo"
-         style="display:flex;align-items:center;
-         justify-content:center;color:#0f766e;
-         font-size:30px;font-weight:800;">
-        AI
+    style="display:flex;align-items:center;
+    justify-content:center;color:#0f766e;
+    font-size:28px;font-weight:800;">
+    AI
     </div>
     """
 
 
-# =====================================================
+logo_html = get_logo()
+
+st.markdown(
+    f"""
+    <div class="header-box">
+        {logo_html}
+        <div>
+            <div class="brand-title">Dev AI</div>
+            <div class="brand-subtitle">RESUME ANALYZER</div>
+            <p>
+                Analyze your resume, compare job skills,
+                and get personalized AI feedback.
+            </p>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ==================================================
 # SKILLS DATABASE
-# =====================================================
+# ==================================================
 SKILLS = [
     "python", "java", "javascript", "typescript",
     "html", "css", "react", "node.js", "express",
@@ -260,121 +247,96 @@ SKILLS = [
     "generative ai", "llm", "llms", "nlp",
     "pandas", "numpy", "pytorch", "tensorflow",
     "scikit-learn", "streamlit", "data analysis",
-    "data visualization", "docker", "aws", "azure",
-    "communication", "problem solving", "power bi",
-    "excel", "tableau", "c++", "oop",
-    "data structures", "algorithms", "transformers",
-    "rag", "langchain", "prompt engineering",
-    "statistics", "matplotlib", "seaborn", "linux",
-    "agile", "testing", "debugging", "next.js",
-    "redux", "tailwind css", "bootstrap", "php",
+    "docker", "aws", "azure", "power bi", "excel",
+    "tableau", "c++", "oop", "data structures",
+    "algorithms", "transformers", "rag", "langchain",
+    "prompt engineering", "statistics", "linux",
+    "next.js", "redux", "tailwind css", "php",
     "redis", "kubernetes", "ci/cd", "leadership",
     "teamwork", "project management",
     "api integration", "responsive design",
     "web development", "communication skills",
+    "problem solving", "matplotlib", "seaborn",
 ]
 
 
-# =====================================================
-# RESUME TEXT EXTRACTION + OCR
-# =====================================================
+# ==================================================
+# RESUME EXTRACTION
+# ==================================================
 def extract_resume_text(uploaded_file, use_ocr=True):
-    try:
-        filename = uploaded_file.name.lower()
-        raw_bytes = uploaded_file.getvalue()
+    filename = uploaded_file.name.lower()
+    raw = uploaded_file.getvalue()
 
-        # PDF FILE
-        if filename.endswith(".pdf"):
-            reader = PdfReader(io.BytesIO(raw_bytes))
+    if filename.endswith(".pdf"):
+        reader = PdfReader(io.BytesIO(raw))
 
-            pages = []
+        pages = []
 
-            for page in reader.pages:
-                try:
-                    pages.append(page.extract_text() or "")
-                except Exception:
-                    pages.append("")
+        for page in reader.pages:
+            try:
+                pages.append(page.extract_text() or "")
+            except Exception:
+                pages.append("")
 
-            text = "\n".join(pages).strip()
+        text = "\n".join(pages).strip()
 
-            # Try OCR if PDF has little readable text
-            if len(text) < 80 and use_ocr:
+        if len(text) < 80 and use_ocr:
+            try:
+                import pytesseract
+                from pdf2image import convert_from_bytes
 
-                if not OCR_AVAILABLE:
-                    st.warning(
-                        "OCR libraries are unavailable. "
-                        "Install pytesseract, pdf2image, "
-                        "Tesseract and Poppler."
-                    )
-                    return text
+                with st.spinner(
+                    "Trying OCR on your scanned PDF..."
+                ):
+                    images = convert_from_bytes(raw, dpi=180)
 
-                try:
-                    with st.spinner(
-                        "Scanned PDF detected. Running OCR..."
-                    ):
-                        images = convert_from_bytes(
-                            raw_bytes,
-                            dpi=200
-                        )
+                    ocr_pages = [
+                        pytesseract.image_to_string(image)
+                        for image in images
+                    ]
 
-                        ocr_pages = [
-                            pytesseract.image_to_string(image)
-                            for image in images
-                        ]
+                    ocr_text = "\n".join(ocr_pages).strip()
 
-                        ocr_text = "\n".join(ocr_pages).strip()
+                if len(ocr_text) > len(text):
+                    text = ocr_text
 
-                    if len(ocr_text) > len(text):
-                        text = ocr_text
+            except Exception as error:
+                st.warning(
+                    "OCR could not run. Check that "
+                    "Tesseract and Poppler are installed."
+                )
 
-                except Exception as error:
-                    st.warning(
-                        "OCR failed. Check Tesseract and "
-                        "Poppler installation."
-                    )
+                with st.expander("OCR technical details"):
+                    st.code(str(error))
 
-                    with st.expander("OCR error details"):
-                        st.code(str(error))
+        return text
 
-            return text
+    if filename.endswith(".docx"):
+        doc = Document(io.BytesIO(raw))
 
-        # WORD DOCUMENT
-        elif filename.endswith(".docx"):
-            document = Document(io.BytesIO(raw_bytes))
+        parts = [
+            paragraph.text
+            for paragraph in doc.paragraphs
+            if paragraph.text.strip()
+        ]
 
-            parts = [
-                paragraph.text
-                for paragraph in document.paragraphs
-                if paragraph.text.strip()
-            ]
+        for table in doc.tables:
+            for row in table.rows:
+                parts.append(
+                    " | ".join(cell.text for cell in row.cells)
+                )
 
-            for table in document.tables:
-                for row in table.rows:
-                    parts.append(
-                        " | ".join(
-                            cell.text for cell in row.cells
-                        )
-                    )
+        return "\n".join(parts).strip()
 
-            return "\n".join(parts).strip()
+    if filename.endswith(".txt"):
+        return raw.decode("utf-8", errors="ignore").strip()
 
-        # TEXT FILE
-        elif filename.endswith(".txt"):
-            return raw_bytes.decode(
-                "utf-8",
-                errors="ignore"
-            ).strip()
-
-        return ""
-
-    except Exception as error:
-        st.error(f"Resume reading error: {error}")
-        return ""
+    return ""
 
 
-# =====================================================
-# SKILL DETECTION
-# =====================================================
+# ==================================================
+# SKILL MATCHING
+# ==================================================
 def find_skills(text):
     text = text.lower()
     found = []
@@ -392,14 +354,12 @@ def find_skills(text):
     return sorted(set(found))
 
 
-# =====================================================
-# RESUME QUALITY ANALYSIS
-# =====================================================
-def analyze_resume_quality(text):
+# ==================================================
+# RESUME QUALITY
+# ==================================================
+def resume_quality(text):
     lower = text.lower()
-
     words = re.findall(r"\b[\w+#.-]+\b", text)
-    word_count = len(words)
 
     sections = {
         "Contact Information": (
@@ -409,38 +369,21 @@ def analyze_resume_quality(text):
             ))
             or bool(re.search(r"\b\d{10}\b", text))
         ),
-
-        "Professional Summary": any(
-            term in lower
-            for term in [
-                "summary",
-                "objective",
-                "professional profile"
+        "Summary": any(
+            x in lower for x in ["summary", "objective"]
+        ),
+        "Experience": any(
+            x in lower for x in [
+                "experience", "employment", "work history"
             ]
         ),
-
-        "Work Experience": any(
-            term in lower
-            for term in [
-                "experience",
-                "employment",
-                "work history"
-            ]
-        ),
-
         "Education": any(
-            term in lower
-            for term in [
-                "education",
-                "university",
-                "degree",
-                "b.tech",
-                "bachelor"
+            x in lower for x in [
+                "education", "university", "b.tech",
+                "bachelor", "degree"
             ]
         ),
-
         "Projects": "project" in lower,
-
         "Skills": "skills" in lower,
     }
 
@@ -448,163 +391,111 @@ def analyze_resume_quality(text):
         sum(sections.values()) / len(sections) * 100
     )
 
-    if 250 <= word_count <= 900:
+    count = len(words)
+
+    if 250 <= count <= 900:
         length_score = 100
-    elif 150 <= word_count < 250 or 900 < word_count <= 1200:
+    elif 150 <= count < 250 or 900 < count <= 1200:
         length_score = 75
     else:
         length_score = 45
 
-    quality_score = round(
+    score = round(
         section_score * 0.7 + length_score * 0.3
     )
 
     return {
-        "word_count": word_count,
+        "words": count,
         "sections": sections,
         "section_score": section_score,
-        "length_score": length_score,
-        "quality_score": quality_score,
+        "score": score,
     }
 
 
-# =====================================================
-# GEMINI AI
-# =====================================================
-def ask_gemini_ai(prompt):
+# ==================================================
+# GEMINI AI — SHORTER PROMPT AND RESPONSE
+# ==================================================
+def ask_gemini_ai(resume_text, job_description,
+                  resume_skills, missing_skills):
+
     api_key = st.secrets.get("GEMINI_API_KEY", "")
 
     if not api_key:
         raise RuntimeError(
-            "GEMINI_API_KEY is missing. "
-            "Add it in Streamlit Cloud Settings > Secrets."
+            "GEMINI_API_KEY is missing. Add it in "
+            "Streamlit Cloud > Settings > Secrets."
         )
 
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=30000
+        ),
+    )
+
+    prompt = f"""
+You are a professional resume reviewer.
+
+Give concise, useful feedback in English using these headings:
+1. Strengths
+2. Three Improvements
+3. Job-Specific Advice
+4. Interview Preparation
+
+Do not invent skills, experience, qualifications or achievements.
+Only use information provided below.
+Keep the complete response under 350 words.
+
+RESUME:
+{resume_text[:5000]}
+
+JOB DESCRIPTION:
+{job_description[:2500] if job_description.strip() else "Not provided"}
+
+DETECTED RESUME SKILLS:
+{", ".join(resume_skills[:35])}
+
+POSSIBLY MISSING JOB SKILLS:
+{", ".join(missing_skills[:25])}
+"""
 
     response = client.models.generate_content(
         model="gemini-3.8-flash",
-        contents=prompt
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.2,
+            max_output_tokens=500,
+        ),
     )
 
     answer = getattr(response, "text", None)
 
-    if not answer:
+    if not answer or not answer.strip():
         raise RuntimeError(
-            "Gemini returned an empty response. "
-            "Check API access and quota."
+            "Gemini returned an empty response."
         )
 
     return answer.strip()
 
 
-# =====================================================
-# RECOMMENDATIONS
-# =====================================================
-def generate_recommendations(
-    resume_text,
-    quality,
-    missing_skills
-):
-    recommendations = []
-
-    for section, present in quality["sections"].items():
-        if not present:
-            recommendations.append(
-                f"Add a clearly labelled {section} section "
-                "if relevant."
-            )
-
-    if missing_skills:
-        recommendations.append(
-            "Review these job skills and include only "
-            "those you genuinely know: "
-            + ", ".join(missing_skills)
-            + "."
-        )
-
-    if "project" not in resume_text.lower():
-        recommendations.append(
-            "Add relevant projects, your contribution, "
-            "technologies used and measurable outcomes."
-        )
-
-    if not re.search(r"\b\d+%", resume_text):
-        recommendations.append(
-            "Where truthful, quantify achievements "
-            "with numbers and measurable results."
-        )
-
-    if quality["word_count"] < 150:
-        recommendations.append(
-            "The resume appears short. Add relevant "
-            "experience, projects, education and skills."
-        )
-
-    elif quality["word_count"] > 1000:
-        recommendations.append(
-            "Remove repetitive details and prioritize "
-            "information relevant to the target role."
-        )
-
-    if not recommendations:
-        recommendations.append(
-            "Your resume contains the main sections "
-            "detected by this tool. Tailor it to the job."
-        )
-
-    return recommendations
-
-
-# =====================================================
-# HEADER
-# =====================================================
-st.markdown(f"""
-<div class="brand-header">
-    {logo_html}
-    <div>
-        <div class="brand-name">Dev AI</div>
-        <div class="brand-subtitle">RESUME ANALYZER</div>
-        <div class="brand-description">
-            Analyze your resume, compare job requirements,
-            identify missing skills, and receive personalized
-            recommendations with Gemini AI assistance.
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-
-# =====================================================
-# INPUT SECTION
-# =====================================================
+# ==================================================
+# INPUTS
+# ==================================================
 st.header("Analyze Your Resume")
 
-st.write(
-    "Upload your resume and add the target job description "
-    "to get a personalized analysis."
-)
-
-left, right = st.columns(2, gap="large")
+left, right = st.columns(2)
 
 with left:
-    st.subheader("📄 Upload Resume")
-
     uploaded_file = st.file_uploader(
-        "Choose your resume",
+        "Upload Resume",
         type=["pdf", "docx", "txt"]
     )
 
 with right:
-    st.subheader("🎯 Target Job")
-
     job_description = st.text_area(
-        "Paste the job description",
-        placeholder=(
-            "Paste job responsibilities, required skills, "
-            "qualifications and experience here..."
-        ),
-        height=180
+        "Paste Job Description",
+        height=170,
+        placeholder="Paste the target job description here...",
     )
 
 use_ai = st.checkbox(
@@ -618,9 +509,8 @@ use_ocr = st.checkbox(
 )
 
 st.caption(
-    "When enabled, resume text is sent to Google Gemini "
-    "for AI feedback. OCR attempts to read scanned PDFs "
-    "when the required OCR dependencies are installed."
+    "When Gemini feedback is enabled, resume text is sent "
+    "to Google Gemini. OCR requires Tesseract and Poppler."
 )
 
 analyze = st.button(
@@ -629,149 +519,136 @@ analyze = st.button(
 )
 
 
-# =====================================================
-# RUN ANALYSIS
-# =====================================================
+# ==================================================
+# ANALYZE
+# ==================================================
 if analyze:
 
     if not uploaded_file:
-        st.warning("Please upload your resume first.")
+        st.warning("Please upload your resume.")
         st.stop()
 
-    with st.spinner("Reading your resume..."):
-        resume_text = extract_resume_text(
-            uploaded_file,
-            use_ocr=use_ocr
-        )
+    try:
+        with st.spinner("Reading your resume..."):
+            resume_text = extract_resume_text(
+                uploaded_file,
+                use_ocr=use_ocr
+            )
+    except Exception as error:
+        st.error(f"Could not read the resume: {error}")
+        st.stop()
 
     if not resume_text.strip():
         st.error(
-            "No readable text could be extracted. "
-            "Try a text-based PDF or upload a DOCX/TXT copy. "
-            "For scanned PDFs, check OCR installation."
+            "No readable text found. Try a text-based PDF "
+            "or upload a DOCX/TXT copy."
         )
         st.stop()
 
     resume_skills = find_skills(resume_text)
     job_skills = find_skills(job_description)
 
-    matched_skills = [
+    matched = [
         skill for skill in job_skills
         if skill in resume_skills
     ]
 
-    missing_skills = [
+    missing = [
         skill for skill in job_skills
         if skill not in resume_skills
     ]
 
-    quality = analyze_resume_quality(resume_text)
+    quality = resume_quality(resume_text)
 
     if job_description.strip() and job_skills:
-        skill_match_score = round(
-            len(matched_skills) / len(job_skills) * 100
+        match_score = round(
+            len(matched) / len(job_skills) * 100
         )
-    else:
-        skill_match_score = None
-
-    if skill_match_score is not None:
         ats_score = round(
-            skill_match_score * 0.7
-            + quality["quality_score"] * 0.3
+            match_score * 0.7 + quality["score"] * 0.3
         )
     else:
-        ats_score = quality["quality_score"]
+        match_score = None
+        ats_score = quality["score"]
 
-    recommendations = generate_recommendations(
-        resume_text,
-        quality,
-        missing_skills
-    )
+    recommendations = []
+
+    for section, present in quality["sections"].items():
+        if not present:
+            recommendations.append(
+                f"Consider adding a clear {section} section "
+                "if relevant to your experience."
+            )
+
+    if missing:
+        recommendations.append(
+            "Review these job skills and include only those "
+            "you genuinely know: " + ", ".join(missing)
+        )
+
+    if not re.search(r"\b\d+%", resume_text):
+        recommendations.append(
+            "Where truthful, quantify achievements with "
+            "numbers, outcomes or measurable results."
+        )
+
+    if not recommendations:
+        recommendations.append(
+            "Your resume contains the main detected sections. "
+            "Tailor its wording to the target job."
+        )
 
     ai_feedback = ""
-    ai_status = "Not requested"
+    ai_error = ""
 
     if use_ai:
-
-        prompt = f"""
-You are a professional resume reviewer.
-
-Analyze the resume against the target job description.
-
-Provide:
-1. Resume strengths.
-2. Three important improvements.
-3. Job-specific tailoring suggestions.
-4. Example resume bullet points based only on supplied facts.
-5. Interview preparation priorities.
-
-Never invent experience, skills, qualifications,
-or achievements. Clearly flag missing evidence.
-
-RESUME:
-{resume_text[:9000]}
-
-JOB DESCRIPTION:
-{job_description[:4000] if job_description.strip() else "Not provided"}
-
-DETECTED SKILLS:
-{", ".join(resume_skills)}
-
-MISSING JOB SKILLS:
-{", ".join(missing_skills)}
-"""
-
         try:
             with st.spinner(
                 "Gemini AI is reviewing your resume..."
             ):
-                ai_feedback = ask_gemini_ai(prompt)
-
-            ai_status = "Connected — Gemini API"
+                ai_feedback = ask_gemini_ai(
+                    resume_text,
+                    job_description,
+                    resume_skills,
+                    missing,
+                )
 
         except Exception as error:
-            ai_status = "Unavailable"
+            ai_error = str(error)
 
-            st.warning(
-                "Gemini AI feedback failed. "
-                "Rule-based analysis is still available."
-            )
-
-            with st.expander("View technical details"):
-                st.code(str(error))
-
-    st.session_state["analysis_result"] = {
+    st.session_state["resume_result"] = {
         "filename": uploaded_file.name,
         "resume_skills": resume_skills,
         "job_skills": job_skills,
-        "matched_skills": matched_skills,
-        "missing_skills": missing_skills,
+        "matched": matched,
+        "missing": missing,
         "quality": quality,
-        "skill_match_score": skill_match_score,
+        "match_score": match_score,
         "ats_score": ats_score,
         "recommendations": recommendations,
         "ai_feedback": ai_feedback,
-        "ai_status": ai_status,
+        "ai_error": ai_error,
     }
 
 
-# =====================================================
+# ==================================================
 # RESULTS
-# =====================================================
-if "analysis_result" in st.session_state:
+# ==================================================
+if "resume_result" in st.session_state:
 
-    result = st.session_state["analysis_result"]
+    result = st.session_state["resume_result"]
+    quality = result["quality"]
 
-    st.markdown("---")
+    st.divider()
     st.header("Analysis Results")
 
-    c1, c2, c3, c4 = st.columns(4)
+    col1, col2, col3, col4 = st.columns(4)
 
-    with c1:
+    with col1:
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-number">
+                <div class="metric-value">
                     {result["ats_score"]}%
                 </div>
                 <div class="metric-label">
@@ -782,143 +659,127 @@ if "analysis_result" in st.session_state:
             unsafe_allow_html=True
         )
 
-    with c2:
-        match_value = (
-            f'{result["skill_match_score"]}%'
-            if result["skill_match_score"] is not None
+    with col2:
+        value = (
+            f'{result["match_score"]}%'
+            if result["match_score"] is not None
             else "N/A"
         )
 
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-number">
-                    {match_value}
-                </div>
-                <div class="metric-label">
-                    Job Skill Match
-                </div>
+                <div class="metric-value">{value}</div>
+                <div class="metric-label">Job Skill Match</div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-    with c3:
+    with col3:
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-number">
-                    {len(result["matched_skills"])}
+                <div class="metric-value">
+                    {len(result["matched"])}
                 </div>
-                <div class="metric-label">
-                    Matched Skills
-                </div>
+                <div class="metric-label">Matched Skills</div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-    with c4:
+    with col4:
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-number">
-                    {result["quality"]["word_count"]}
+                <div class="metric-value">
+                    {quality["words"]}
                 </div>
-                <div class="metric-label">
-                    Resume Words
-                </div>
+                <div class="metric-label">Resume Words</div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
     st.progress(
-        min(max(result["ats_score"] / 100, 0.0), 1.0)
+        max(0.0, min(1.0, result["ats_score"] / 100))
     )
 
     st.caption(
-        "This is a heuristic ATS-style estimate, "
-        "not an official ATS score or hiring decision."
+        "This is a heuristic ATS-style estimate, not an "
+        "official ATS score or hiring decision."
     )
 
-    # Matched skills
     st.subheader("Matched Skills")
 
-    if result["matched_skills"]:
+    if result["matched"]:
         st.markdown(
             "".join(
                 f'<span class="skill-tag">{skill}</span>'
-                for skill in result["matched_skills"]
+                for skill in result["matched"]
             ),
             unsafe_allow_html=True
         )
     else:
-        st.info(
-            "No matching skills were detected "
-            "from the supported skills list."
-        )
+        st.info("No matching skills were detected.")
 
-    # Missing skills
     st.subheader("Missing Job Skills")
 
-    if result["missing_skills"]:
+    if result["missing"]:
         st.markdown(
             "".join(
                 f'<span class="missing-tag">{skill}</span>'
-                for skill in result["missing_skills"]
+                for skill in result["missing"]
             ),
             unsafe_allow_html=True
         )
-
     elif result["job_skills"]:
-        st.success(
-            "All detected job skills were found in the resume."
-        )
-
+        st.success("All detected job skills were found.")
     else:
         st.info(
-            "No supported skills were detected "
-            "in the job description."
+            "Paste a job description to compare required skills."
         )
 
-    # Section analysis
     st.subheader("Resume Section Analysis")
 
-    for section, present in result["quality"]["sections"].items():
-        status = "Detected" if present else "Not detected"
-        icon = "✅" if present else "⚠️"
-
-        st.write(f"{icon} {section}: {status}")
+    for section, present in quality["sections"].items():
+        st.write(
+            f'{"✅" if present else "⚠️"} {section}: '
+            f'{"Detected" if present else "Not detected"}'
+        )
 
     st.write(
-        f'**Section coverage:** '
-        f'{result["quality"]["section_score"]}%'
+        f'**Section coverage:** {quality["section_score"]}%'
     )
 
-    # Recommendations
-    st.subheader("Personalized Recommendations")
+    st.subheader("Recommendations")
 
-    for i, recommendation in enumerate(
-        result["recommendations"],
-        start=1
+    for number, recommendation in enumerate(
+        result["recommendations"], 1
     ):
-        st.write(f"{i}. {recommendation}")
+        st.write(f"{number}. {recommendation}")
 
-    # Gemini feedback
     st.subheader("Gemini AI Feedback")
-
-    st.caption(f'Model status: {result["ai_status"]}')
 
     if result["ai_feedback"]:
         st.markdown(result["ai_feedback"])
-    else:
-        st.info(
-            "AI feedback is unavailable or was not requested. "
-            "Rule-based analysis is still available."
+
+    elif result["ai_error"]:
+        st.error(
+            "Gemini AI feedback could not be generated. "
+            "The rule-based analysis is still available."
         )
 
-    # All resume skills
+        with st.expander("View technical details"):
+            st.code(result["ai_error"])
+
+    else:
+        st.info(
+            "Gemini feedback was not requested. "
+            "Enable the checkbox and analyze again to use AI."
+        )
+
     st.subheader("Skills Detected in Resume")
 
     if result["resume_skills"]:
@@ -930,95 +791,68 @@ if "analysis_result" in st.session_state:
             unsafe_allow_html=True
         )
     else:
-        st.write(
-            "No skills from the current skills database were detected."
-        )
+        st.info("No skills from the current database were detected.")
 
-    # Report download
-    section_report = "\n".join(
-        f'{section}: {"Detected" if present else "Not detected"}'
-        for section, present
-        in result["quality"]["sections"].items()
-    )
-
-    match_report = (
-        f'{result["skill_match_score"]}%'
-        if result["skill_match_score"] is not None
-        else "Not calculated"
-    )
-
-    recommendation_report = "\n".join(
-        "- " + item
-        for item in result["recommendations"]
-    )
-
+    # REPORT
     report = f"""
-DEV AI — RESUME ANALYZER
-========================================
+DEV AI - RESUME ANALYZER
+====================================
 
-Resume file: {result["filename"]}
+Resume: {result["filename"]}
 ATS-style estimate: {result["ats_score"]}%
-Job skill match: {match_report}
-Resume word count: {result["quality"]["word_count"]}
-Section coverage: {result["quality"]["section_score"]}%
+Job skill match: {result["match_score"]}
+Resume word count: {quality["words"]}
+Section coverage: {quality["section_score"]}%
 
 MATCHED SKILLS
-----------------------------------------
-{", ".join(result["matched_skills"]) or "None"}
+{", ".join(result["matched"]) or "None"}
 
 MISSING JOB SKILLS
-----------------------------------------
-{", ".join(result["missing_skills"]) or "None"}
+{", ".join(result["missing"]) or "None"}
 
-SKILLS FOUND IN RESUME
-----------------------------------------
+RESUME SKILLS
 {", ".join(result["resume_skills"]) or "None"}
 
-SECTION ANALYSIS
-----------------------------------------
-{section_report}
-
 RECOMMENDATIONS
-----------------------------------------
-{recommendation_report}
-
-GEMINI AI STATUS
-----------------------------------------
-{result["ai_status"]}
+{chr(10).join("- " + item for item in result["recommendations"])}
 
 GEMINI AI FEEDBACK
-----------------------------------------
-{result["ai_feedback"] or "Not available"}
+{result["ai_feedback"] or result["ai_error"] or "Not available"}
 
 DISCLAIMER
-----------------------------------------
-This report is a heuristic resume analysis,
-not an official ATS score or hiring decision.
+This is an automated estimate, not an official ATS score.
 """
 
     st.download_button(
-        "Download Full Analysis Report",
+        "Download Analysis Report",
         data=report,
         file_name="Dev_AI_Resume_Analysis.txt",
         mime="text/plain",
-        use_container_width=True
+        use_container_width=True,
     )
 
 
-# =====================================================
-# FOOTER
-# =====================================================
-st.markdown("""
-<div class="footer">
-    <strong style="color:#f1f5f9;font-size:16px;">
-        Dev AI
-    </strong>
+# ==================================================
+# FOOTER - FIXED HTML RENDERING
+# ==================================================
+st.markdown(
+    """
+    <div class="footer-box">
+        <strong style="color:#f1f5f9;font-size:18px;">
+            Dev AI
+        </strong>
 
-    <div style="color:#5eead4;letter-spacing:3px;margin-top:5px;">
-        RESUME ANALYZER
+        <div style="
+            color:#5eead4;
+            letter-spacing:3px;
+            margin-top:5px;
+        ">
+            RESUME ANALYZER
+        </div>
+
+        <p>Python · Streamlit · Google Gemini AI · PDF OCR</p>
+        <p>Built by Dewansh Pandey</p>
     </div>
-
-    <p>Python · Streamlit · Google Gemini AI · PDF OCR</p>
-    <p>Built by Dewansh Pandey</p>
-</div>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
