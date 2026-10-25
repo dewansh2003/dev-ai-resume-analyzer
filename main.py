@@ -836,23 +836,28 @@ This is an automated estimate, not an official ATS score.
 # FOOTER - FIXED HTML RENDERING
 # ==================================================
 st.markdown(
+   # FOOTER
+st.markdown(
     """
-    <div class="footer-box">
-        <strong style="color:#f1f5f9;font-size:18px;">
-            Dev AI
-        </strong>
+    <div style="text-align:center;
+                border-top:1px solid #26364b;
+                padding:22px;
+                margin-top:45px;
+                color:#8b9bb0;">
 
-        <div style="
-            color:#5eead4;
-            letter-spacing:3px;
-            margin-top:5px;
-        ">
+        <h3 style="color:#f1f5f9;">Dev AI</h3>
+
+        <p style="color:#5eead4;
+                  letter-spacing:3px;">
             RESUME ANALYZER
-        </div>
+        </p>
 
         <p>Python · Streamlit · Google Gemini AI · PDF OCR</p>
+
         <p>Built by Dewansh Pandey</p>
+
     </div>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
+)
 )
